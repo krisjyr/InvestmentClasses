@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using InvestmentClasses.Data;
 using InvestmentClasses.Data.InMemoryData;
-using InvestmentClasses.Domain;
+using InvestmentClasses.Reporting;
 
 namespace InvestmentClasses
 {
@@ -16,32 +15,23 @@ namespace InvestmentClasses
             IDataLoader loader = new InMemoryDataLoader();
             loader.LoadData(_dataContext);
 
-            var context = _dataContext;
-            TransactionsLoader.LoadTransactions(context);
+            var account = _dataContext.Accounts.GetByName("LHV");
+            var builder = new AccountStatementBuilder(account);
+            var statement = builder.Build(DateTime.Now.Date.AddDays(-30), DateTime.Now.Date);
+            TransactionsLoader.LoadTransactions(_dataContext);
+            var accounts = _dataContext.Accounts.ToList();
 
-            // Print account history
-            var accounts = context.Accounts.ToList();
-            foreach (var account in accounts)
+            IAccountStatementPrinter printer;
+            foreach(var accountt in accounts)
             {
-                Console.WriteLine(account.Name);
-                Console.WriteLine("TransactionID|Date|Amount|Currency|Description|Balance");
-                Console.WriteLine("----------------------------------------------------------");
+                printer = new HtmlAccountStatementPrinter(statement, "statement.html");
+                printer.Print(accountt);
 
-                var balance = 0m;
-                var transactions = account.Transactions.OrderBy(t => t.Time);
-                foreach (var transaction in transactions)
-                {
-                    var sign = transaction.Amount < 0 ? "-" : "+";
-                    var amount = sign + Math.Abs(transaction.Amount).ToString("F");
-                    var transactionBalance = balance + transaction.Amount;
+                printer = new ConsoleAccountStatementPrinter(statement);
+                printer.Print(accountt);
 
-                    Console.WriteLine($"{transaction.TransactionId}|{transaction.Time:yyyy-MM-dd HH:mm:ss}|{amount}|{transaction.Securable.Ticker}|{transaction.Description}|{transactionBalance:F}");
-
-                    balance = transactionBalance;
-                }
-
-                Console.WriteLine();
             }
+            
         }
     }
 }
